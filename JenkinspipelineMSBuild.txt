@@ -29,7 +29,14 @@ pipeline {
 				}
 			
 			}
-
+////
+    stage('Folder Copy'){
+            agent{label 'xxxxx'}
+            steps{
+                bat 'XCOPY "C:\\xxx\\xxxx\\xxxxx\\xxxxxx\\*" "C:\\xxxx" /h/i/c/k/e/r/y'
+            }
+        }
+//////
 		stage ('Archive Artifects') {
 			steps {
 				    bat 'archiveArtifacts "C:\\iiscloud\\bookstore\\BookService.zip"'
