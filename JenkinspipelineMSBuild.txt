@@ -46,3 +46,39 @@ pipeline {
 			
 		}		
 }
+
+----------------------------
+pipeline {
+	agent any
+	
+	stages {
+
+		stage ('Clone Repo') {
+			steps {
+				git url: 'https://github.com/rinkucool007/aspsitebook.git'			
+			}
+		}	
+	
+	
+		stage ('Nuget Restore') {
+			steps {
+				bat '"C:\\nuget\\nuget.exe" restore BookService.sln'
+			}
+		}
+
+		stage ('MSBuild') {
+			steps {
+				    bat 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\MSBuild.exe "BookService\\BookService.csproj" /T:Build;Package /p:Configuration=DEBUG /p:OutputPath="obj\\DEBUG" /p:DeployIisAppPath="/Default Web Site/BookService" /p:VisualStudioVersion=14.0'
+				}
+			
+			}
+
+		stage ('IIS Deploy') {
+			steps {
+				    bat 'XCOPY "C:\\bookstor\\aspsitebook\\BookService\\obj\\Debug\\_PublishedWebsites\\BookService\\*" "C:\\iiscloud\\bookstore" /h/i/c/k/e/r/y'
+				}
+			
+			}
+			
+		}		
+}
