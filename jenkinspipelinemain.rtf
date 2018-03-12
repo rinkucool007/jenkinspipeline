@@ -1,0 +1,768 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf200
+{\fonttbl\f0\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs26 \cf0 \expnd0\expndtw0\kerning0
+pipeline \{\
+    agent any\
+parallel firstBranch: \{\
+    stage ('Starting Test') \
+    \{\
+        build job: 'test1', parameters: [string(name: 'var', value: 'coucou')]\
+    \}\
+\}, secondBranch: \{\
+    stage ('Starting Test2') \
+    \{\
+        build job: 'test1', parameters: [string(name: 'var', value: 'coucou')]\
+    \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97\
+node ('master')\{\
+  stage('checkout ') \{\
+    git 'https://github.com/executeautomation/SeleniumWithCucucumber.git'\
+  \}\
+\
+  stage('clean')\{\
+     sh 'mvn clean'\
+  \}\
+  stage('build & test') \{\
+      sh 'mvn verify'\
+  \}\
+\
+  stage('report') \{\
+ cucumber '**/*.json'\
+  \}\
+  stage('Email')\{\
+      emailext body: '''Completed Build.\
+      Checkout + Build + test + reporting.''', subject: 'Completed Jenkins build', to: 'gofokere@gmail.com'\
+  \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\
+pipeline \{\
+\
+    agent any\
+\
+    triggers \{\
+        pollSCM '*/1 * * * *'\
+    \}\
+\
+    stages \{\
+\
+        stage('Initialize') \{\
+            steps \{\
+                sh './gradlew clean'\
+            \}\
+        \}\
+\
+        stage('Test') \{\
+            steps \{\
+                sh './gradlew test'\
+            \}\
+        \}\
+\
+        stage('Package') \{\
+            steps \{\
+                sh './gradlew build'\
+            \}\
+        \}\
+\
+        stage('Deploy') \{\
+            steps \{\
+                sh 'echo Deploying...'\
+            \}\
+        \}\
+\
+        stage('Online tests') \{\
+            parallel \{\
+                stage('Selenium') \{\
+                    steps \{\
+                        sh "echo Hello"\
+                        sleep time: 7, unit: 'SECONDS'\
+                    \}\
+                \}\
+                stage('Stress Tests') \{\
+                    steps \{\
+                        sh "echo Hello"\
+                        sleep time: 3, unit: 'SECONDS'\
+                    \}\
+                \}\
+                stage('Extremely slow test') \{\
+                    steps \{\
+                        sh "echo Hello"\
+                        sleep time: 10, unit: 'SECONDS'\
+                    \}\
+                \}\
+            \}\
+        \}\
+\
+    \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\
+pipeline \{\
+\
+    agent \{\
+        label 'master'\
+    \}\
+\
+    environment\{\
+        MAJOR_MINOR_VERSION="0.0."\
+    \}\
+\
+    stages \{\
+        stage('Build') \{\
+            steps \{\
+		script\{\
+                        env.RELEASE="$\{env.BUILD_ID\}-$\{env.BRANCH_NAME\}-$\{currentCommitSha()\}"\
+			env.MASTER_RELEASE="$\{nextRelease()\}"\
+                \}\
+		echo "$\{env.RELEASE\}"\
+		echo "$\{env.MASTER_RELEASE\}"\
+                sh("git config --global user.email $\{env.CHANGE_AUTHOR_EMAIL\}")\
+                sh("git config --global user.name $\{env.CHANGE_AUTHOR\}")\
+                sh("git tag -a $\{env.RELEASE\} -m 'Jenkins'")\
+                sh("git push --tags")\
+                step(\
+                    [\
+                        $class: 'GitHubCommitStatusSetter',\
+                        statusResultSource: [\
+                            $class: 'ConditionalStatusResultSource',\
+                            results: [[$class: 'AnyBuildResult', message: 'Building on Jenkins CI', state: 'PENDING']]\
+                        ]\
+                    ]\
+                )\
+            \}\
+        \}\
+    \}\
+\
+    post \{\
+        failure \{\
+            step([\
+                $class: 'GitHubCommitStatusSetter',\
+                errorHandlers: [[$class: 'ShallowAnyErrorHandler']],\
+                statusResultSource: [\
+                    $class: 'ConditionalStatusResultSource',\
+                    results: [\
+                        [$class: 'AnyBuildResult', state: 'FAILURE', message: 'Build failed']\
+                    ]\
+                ]\
+            ])\
+        \}\
+\
+        success \{\
+             step([\
+                 $class: 'GitHubCommitStatusSetter',\
+                 errorHandlers: [[$class: 'ShallowAnyErrorHandler']],\
+                 statusResultSource: [\
+                     $class: 'ConditionalStatusResultSource',\
+                     results: [\
+                         [$class: 'AnyBuildResult', state: 'SUCCESS', message: 'Build successful']\
+                     ]\
+                 ]\
+             ])\
+        \}\
+    \}\
+\}\
+\
+def currentCommitSha() \{\
+  sh "git rev-parse HEAD > .git/current-commit"\
+  return readFile(".git/current-commit").trim()\
+\}\
+\
+def nextRelease() \{\
+  sh "git tag -l --sort version:refname | awk '/^([0-9]+).([0-9]+).([0-9]+)\\$/\{split(\\$0,v,\\".\\")\}END\{printf(\\"%d.%d.%d\\",v[1],v[2],v[3]+1)\}' > .git/current-tag"\
+  return readFile(".git/current-tag").trim()\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\
+pipeline \{\
+  agent any\
+  options\{\
+  	timestamps()\
+\
+  		 \}\
+\
+	\
+\
+  stages \{\
+\
+  	stage('SCM') \{\
+\
+		steps\{\
+  		checkout([$class: 'GitSCM',\
+			  branches: [[name: 'master']],\
+			  doGenerateSubmoduleConfigurations: false,\
+			  extensions: [[$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', timeout: 15, trackingSubmodules: true]],\
+			  submoduleCfg: [],\
+			  userRemoteConfigs: [[credentialsId: 'ef683bd0-363a-4e07-878d-33510fe96fe8', url: 'https://git-codecommit.us-east-2.amazonaws.com/v1/repos/mcdonalds-gma5x-android']]])\
+			\}\
+  		\}\
+\
+        \
+\
+\
+  stage('Build') \{\
+      steps \{\
+        sh '''\
+	  #run build\
+	 ./gradlew clean assembleRelease\
+	 '''\
+    \}\
+    \} \
+\
+/*stage('Test') \{\
+      steps \{\
+        sh './gradlew cleanTest test jacocoTestReport --continue --info'\
+      \}\
+    \}\
+*/\
+\
+ /*   stage('Hockeyapp') \{\
+    	steps \{\
+    			step([$class: 'HockeyappRecorder',\
+    			applications: [[apiToken: 'd90ccdd12e7440518048400adee5bb23',\
+    			downloadAllowed: false,\
+    			filePath: 'app/build/outputs/apk/app-QA-release.apk',\
+    			mandatory: false,\
+    			notifyTeam: false,\
+    			releaseNotesMethod: [$class: 'NoReleaseNotes'],\
+    			uploadMethod: [$class: 'AppCreation', publicPage: false]]],\
+    			debugMode: false,\
+    			failGracefully: false])\
+    	 	 \}\
+\}*/\
+    \} \
+ /*	post \{\
+\
+		success \{\
+\
+			emailext (\
+          		subject: "SUCCESSFUL: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]'",\
+          		body: """<p>SUCCESSFUL: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]':</p>\
+          		  <p>Check console output at &QUOT;<a href='$\{env.BUILD_URL\}'>$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]</a>&QUOT;</p>""",\
+         		recipientProviders: [[$class: 'rushikesh.jawali@capgemini.com']]\
+				)\
+\
+		\}\
+\
+\
+	        failure \{\
+\
+			emailext (\
+          		subject: "FAILED: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]'",\
+          		body: """<p>FAILED: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]':</p>\
+          		  <p>Check console output at &QUOT;<a href='$\{env.BUILD_URL\}'>$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]</a>&QUOT;</p>""",\
+          		recipientProviders: [[$class: 'rushikesh.jawali@capgemini.com']]\
+       			 	)\
+            \
+        \}\
+    \} */\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\
+node \{\
+  try \{\
+    stage('checkout') \{\
+      checkout scm\
+    \}\
+    stage('prepare') \{\
+      sh "git clean -fdx"\
+    \}\
+    stage('compile') \{\
+      echo "nothing to compile for hello.sh..."\
+    \}\
+    stage('test') \{\
+      sh "./test_hello.sh"\
+    \}\
+    stage('package') \{\
+      sh "tar -cvzf hello.tar.gz hello.sh"\
+    \}\
+    stage('publish') \{\
+      echo "uploading package..."\
+    \}\
+  \} finally \{\
+    stage('cleanup') \{\
+      echo "doing some cleanup..."\
+    \}\
+  \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\
+#!groovy\
+node \{\
+    try \{\
+        env.PATH = "$\{tool 'apache-maven-3.2.2'\}/bin:$\{env.PATH\}"\
+        env.JAVA_HOME="$\{tool 'Oracle-JDK-1.8.0_45'\}"\
+        env.PATH="$\{env.JAVA_HOME\}/bin:$\{env.PATH\}"\
+\
+        String settingsXMLID = "adb07180-fa9c-4bea-94c4-130813b8018c-manuri";\
+        String gitCredentialsID = "manuri-pipeline-git";\
+        String user = "manuri";\
+\
+\
+        stage('Build Common Dependency') \{\
+            cloneRepository("ballerina-temp", user, gitCredentialsID);\
+\
+            release(settingsXMLID, "ballerina-temp");\
+        \}\
+\
+        stage('Build Dependent Repositories') \{\
+            parallel repo1: \{\
+                cloneRepository("docerina-temp", user, gitCredentialsID);\
+\
+                updateProperties("docerina-temp", gitCredentialsID, settingsXMLID, user, "Updating properties",\
+                        "org.ballerinalang:ballerina-core,org.ballerinalang:ballerina-launcher");\
+\
+                release(settingsXMLID, "docerina-temp")\
+            \}, repo2: \{\
+                cloneRepository("testerina-temp", user, gitCredentialsID);\
+\
+                updateProperties("testerina-temp", gitCredentialsID, settingsXMLID, user, "Updating properties",\
+                        "org.ballerinalang:ballerina-core,org.ballerinalang:ballerina-launcher," +\
+                        "org.ballerinalang:ballerina-native,org.ballerinalang:annotation-processor");\
+\
+                release(settingsXMLID, "testerina-temp")\
+            \}, repo3: \{\
+                cloneRepository("connectors-temp", user, gitCredentialsID);\
+\
+                updateProperties("connectors-temp", gitCredentialsID, settingsXMLID, user, "Updating properties",\
+                        "org.ballerinalang:ballerina-core,org.ballerinalang:ballerina-native,org.ballerinalang:annotation-processor");\
+\
+                release(settingsXMLID, "connectors-temp")\
+            \}, failFast: true\
+        \}\
+    \} finally \{\
+        stage('Clean Up') \{\
+            deleteDir();\
+        \}\
+    \}\
+\}\
+\
+def cloneRepository(String repositoryName, String user, String credentials) \{\
+    checkout([\
+            $class: 'GitSCM',\
+            branches: [[name: '*/master']],\
+            doGenerateSubmoduleConfigurations: false,\
+            extensions: [[$class: 'LocalBranch', localBranch: 'master'],\
+                         [$class: 'RelativeTargetDirectory', relativeTargetDir: repositoryName]],\
+            submoduleCfg: [],\
+            userRemoteConfigs:\
+                    [[credentialsId: credentials,\
+                      url: "http://github.com/$\{user\}/$\{repositoryName\}.git"]]])\
+\}\
+\
+def updateProperties(String repositoryName, String credentials, String settingsXml, String user, String commitMessage, String propertiesList) \{\
+    configFileProvider(\
+            [configFile(fileId: settingsXml, variable: 'MAVEN_SETTINGS')]) \{\
+        dir(repositoryName) \{\
+            sh "mvn -s $MAVEN_SETTINGS versions:update-properties -Dincludes=$\{propertiesList\}"\
+            boolean changesPresent = sh (\
+                    script: "git diff-index --quiet HEAD",\
+                    returnStatus: true\
+            ) == 1\
+            if (changesPresent) \{\
+                sh("git add -u")\
+                sh("git commit -m '$\{commitMessage\}'")\
+                withCredentials(\
+                        [[$class          : 'UsernamePasswordMultiBinding',\
+                          credentialsId   : credentials,\
+                          usernameVariable: 'GIT_USERNAME',\
+                          passwordVariable: 'GIT_PASSWORD']]) \{\
+                    sh("git remote set-url origin https://$\{GIT_USERNAME\}:$\{GIT_PASSWORD\}@github.com/$\{user\}/$\{repositoryName\}.git")\
+                    sh("git push origin HEAD:master")\
+                \}\
+            \}\
+        \}\
+    \}\
+\}\
+\
+def release(String settingsXml, String repositoryDir) \{\
+    configFileProvider(\
+            [configFile(fileId: settingsXml, variable: 'MAVEN_SETTINGS')]) \{\
+        dir(repositoryDir) \{ sh 'mvn -s $MAVEN_SETTINGS release:prepare release:perform -B -Darguments="-Dmaven.deploy.skip=true -DskipTests=true"' \}\
+    \}\
+\}\
+\
+\
+\
+\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97\
+node \{\
+   stage 'Checkout'\
+   git url: 'https://github.com/spring-projects/spring-petclinic.git'\
+   def mvnHome = tool 'mvn'\
+   \
+   try \{\
+    stage 'Build'\
+    sh "$\{mvnHome\}/bin/mvn clean install"\
+   \
+    stage 'Archive'\
+    archive 'target/petclinic.war'\
+   \} catch (err) \{\
+    emailext body: 'Hi, your build successfully failed', subject: 'Test jenkins', to: 'rudakovaa@sgu.ru'\
+   \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\
+#!/usr/bin/env groovy\
+\
+// Author: Artem Tyrnov <tyrnov@protonmail.com>\
+\
+def projectProperties = [\
+    [$class: 'BuildDiscarderProperty',strategy: [$class: 'LogRotator', numToKeepStr: '5']],\
+]\
+\
+try \{\
+    node \{\
+        stage('Clean workspace') \{\
+            deleteDir()\
+            sh 'ls -lah'\
+        \}\
+\
+        stage('Checkout source') \{\
+            git poll: true, url: 'git://github.com/tyrnov/SparkWordCounter',\
+            branch: 'master'\
+            checkout scm\
+            sh 'git clean -fdx; sleep 4;'\
+        \}\
+\
+// If we use Java application against Python we need to test it and build:\
+\
+        def mvnHome = tool 'mvn'\
+\
+        stage('Build stage') \{\
+            timeout(60) \{\
+                sh "$\{mvnHome\}/bin/mvn versions:set -DnewVersion=$\{env.BUILD_NUMBER\}"\
+                sh "$\{mvnHome\}/bin/mvn package"\
+            \}\
+        \}\
+\
+        stage 'test'\
+        parallel 'test': \{\
+            sh "$\{mvnHome\}/bin/mvn test; sleep 2;"\
+        \}, 'verify': \{\
+            sh "$\{mvnHome\}/bin/mvn verify; sleep 3"\
+        \}\
+\
+        stage('Archive artifacts') \{\
+            archiveArtifacts artifacts: 'target/*.jar', fingerprint: true\
+        \}\
+    \}\
+\}\
+catch (exc) \{\
+    echo "Caught: $\{exc\}"\
+\
+    String recipient = 'tyrnov@protonmail.com'\
+\
+    mail subject: "$\{env.JOB_NAME\} ($\{env.BUILD_NUMBER\}) failed",\
+            body: "It appears that $\{env.BUILD_URL\} is failing, somebody should do something about that",\
+              to: recipient,\
+         replyTo: recipient,\
+            from: 'noreply@jenkins-server.io'\
+\}\
+\
+// vim: ft=groovy\
+\'97\'97\'97\'97\'97\'97\'97\
+#!groovy\
+// Declarative //\
+pipeline \{\
+   agent any\
+      stages \{\
+          stage('Build') \{\
+              steps \{\
+                  echo 'Building..'\
+\} \}\
+          stage('Test') \{\
+              steps \{\
+                  echo 'Testing..'\
+              \}\
+          \}\
+          stage('Deploy') \{\
+              steps \{\
+                  echo 'Deploying....'\
+\} \}\
+\} \}\
+  // Script //\
+node \{\
+      stage('Build') \{\
+          echo 'Building....'\
+      \}\
+      stage('Test') \{\
+          echo 'Building....'\
+      \}\
+      stage('Deploy') \{\
+          echo 'Deploying....'\
+\} \}\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97\
+import groovy.json.JsonSlurper\
+\
+VERSION_NUMBER = ""\
+\
+/** Pipeline **/\
+node \{\
+    ws('netcore') \{\
+        try\{\
+            stage("scm pull") \{\
+				deleteDir();\
+				cloneRepo();\
+                VERSION_NUMBER = getVersionNumber();\
+                currentBuild.displayName = "$VERSION_NUMBER";\
+            \}\
+\
+            stage ("dotnet build") \{\
+				dotnet_build();\
+            \}\
+\
+            stage ("dotnet test") \{\
+				dotnet_test();\
+            \}\
+\
+            stage ("dotnet publish") \{\
+				dotnet_publish();\
+            \}\
+\
+            stage ("docker build") \{\
+				docker_build();\
+            \}\
+\
+            stage ("docker run") \{\
+				docker_run();\
+            \}\
+        \}\
+        catch (InterruptedException x) \{\
+            currentBuild.result = 'ABORTED';\
+            throw x;\
+        \}\
+        catch (e) \{\
+            currentBuild.result = 'FAILURE';\
+            throw e;\
+        \}\
+    \}\
+\}\
+\
+def cloneRepo() \{\
+    checkout scm;\
+\}\
+\
+def dotnet_build()\{\
+	dir('Merken.NetCoreBuild.App') \{\
+		sh(script: 'dotnet build Merken.NetCoreBuild.App.csproj', returnStdout: true);\
+	\}\
+\}\
+\
+def dotnet_test()\{\
+	dir('Merken.NetCoreBuild.Test') \{\
+		\
+		sh(script: 'dotnet restore', returnStdout: true);\
+		sh(script: 'dotnet xunit -xml xunit-results.xml', returnStdout: true);\
+    \}\
+\
+    dir('Merken.NetCoreBuild.Transform') \{\
+		sh(script: 'dotnet run ../Merken.NetCoreBuild.Test/xunit-results.xml xunitdotnet-2.0-to-junit-2.xsl junit-results.xml', returnStdout: true);\
+\
+        step([$class: 'XUnitBuilder',\
+            thresholds: [[$class: 'FailedThreshold', unstableThreshold: '1']],\
+            tools: [[$class: 'JUnitType', pattern: '*.*']]])\
+	\}\
+\}\
+\
+def dotnet_publish()\{\
+    dir('Merken.NetCoreBuild.App') \{\
+        sh(script: 'dotnet publish Merken.NetCoreBuild.App.csproj -o ./obj/Docker/publish', returnStdout: true);\
+        sh(script: 'cp Dockerfile ./obj/Docker/publish', returnStdout: true);\
+        sh(script: 'tar zcf netcoreapp.tar.gz -C ./obj/Docker/publish .', returnStdout: true);\
+    \}\
+\}\
+\
+def docker_build()\{\
+    dir('Merken.NetCoreBuild.App') \{\
+        dockerApiRequest('containers/netcoreapp/stop', 'POST');\
+        dockerApiRequest('containers/prune', 'POST');\
+        dockerApiRequest('images/netcoreapp', 'DELETE');\
+        dockerApiRequest('build?t=netcoreapp:' + VERSION_NUMBER + '&nocache=1&rm=1', 'POST', 'tar','', '@netcoreapp.tar.gz', true);\
+    \}\
+\}\
+\
+def docker_run()\{\
+    dir('Merken.NetCoreBuild.App') \{\
+        def containerId = createContainer();\
+        renameContainer(containerId);\
+        startContainer();\
+    \}\
+\}\
+\
+def createContainer()\{\
+    sh('echo \\'\{ "Image": "netcoreapp:' + VERSION_NUMBER + '", "ExposedPorts": \{ "5000/tcp" : \{\} \}, "HostConfig": \{ "PortBindings": \{ "5000/tcp": [\{ "HostPort": "5000" \}] \} \} \}\\' > imageconf');\
+\
+    def createResponse = dockerApiRequest('containers/create', 'POST', 'json', 'json', '@imageconf');\
+    def containerId = createResponse.Id;\
+\
+    return containerId;\
+\}\
+\
+def renameContainer(containerId)\{\
+    def request = 'containers/' + containerId + '/rename?name=netcoreapp';\
+    dockerApiRequest(request, 'POST');\
+\}\
+\
+def startContainer()\{\
+    dockerApiRequest('containers/netcoreapp/start', 'POST');\
+\}\
+\
+//Generates a version number\
+def getVersionNumber() \{\
+    def out = sh(script: 'git rev-list --count HEAD', returnStdout: true);\
+    def array = out.split("\\\\r?\\\\n");\
+    def count = array[array.length - 1];\
+\
+    def commitCount = count.trim();\
+\
+    return commitCount;\
+\}\
+\
+def dockerApiRequest(request, method, contenttype = 'json', accept = '', data = '', isDataBinary = false)\{\
+    def requestBuilder = 'curl -v -X ' + method + ' --unix-socket /var/run/docker.sock "http://0.0.0.0:2375/' + request + '"';\
+\
+    if(contenttype == 'json')\{\
+        requestBuilder += ' -H "Content-Type:application/json"';\
+    \}\
+\
+    if(contenttype == 'tar')\{\
+        requestBuilder += ' -H "Content-Type:application/x-tar"';\
+    \}\
+\
+    if(accept == 'json')\{\
+        requestBuilder += ' -H "Accept: application/json"';\
+    \}\
+    \
+    if(data.trim())\{\
+        if(isDataBinary)\{\
+            requestBuilder += ' --data-binary ' + data + ' --dump-header - --no-buffer';\
+        \}else\{\
+            requestBuilder += ' -d ' + data;\
+        \}\
+    \}\
+\
+    def response = sh(script: requestBuilder, returnStdout:true);\
+    \
+    if(accept == 'json')\{\
+        def jsonSlurper = new JsonSlurper();\
+        def json = jsonSlurper.parseText(response);\
+        return json;\
+    \}\
+\
+    return null;\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\
+node('windows') \{\
+   \
+   def slnName     = "helloci.sln"\
+   def msbHome = "C:\\\\Windows\\\\Microsoft.NET\\\\Framework64\\\\v4.0.30319\\\\MSBuild.exe"\
+   def nuget = "c:\\\\temp\\\\nuget.exe"\
+   def server = Artifactory.server 'keysight-artifactory-dev'\
+   \
+   try\{\
+       notifyBuild('STARTED')\
+\
+       \
+       stage('Preparation') \{ // for display purposes\
+      // Get some code from a GitHub repository\
+      git 'https://bitbucket.it.keysight.com/scm/fus/helloci.git'\
+     \
+   \}\
+   stage('Build') \{\
+        bat("\\"$\{msbHome\}\\" \\"$\{slnName\}\\"  /verbosity:minimal /nologo /t:Clean,Build")\
+           \
+   \}\
+   stage('Nuget Pack')\
+   \{\
+       bat("$\{nuget\} pack hellocilib/hellocilib.csproj")\
+   \}\
+   stage('Nuget Publish')\
+   \{\
+       bat("$\{nuget\} push *.nupkg -Source Artifactory")\
+   \}\
+   stage('KosiHub Updated')\
+   \{\
+       echo "KosiHub Updated"\
+   \}\
+   \}\
+   catch (e)\
+   \{\
+       currentBuild.result = "FAILED";\
+   \}\
+   finally\
+   \{\
+       notifyBuild(currentBuild.result)\
+   \}\
+   \
+\}\
+\
+def notifyBuild(String buildStatus = 'STARTED') \{\
+  // build status of null means successful\
+  buildStatus =  buildStatus ?: 'SUCCESSFUL'\
+\
+  // Default values\
+  def colorName = 'RED'\
+  def colorCode = '#FF0000'\
+  def subject = "$\{buildStatus\}: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]'"\
+  def summary = "$\{subject\} ($\{env.BUILD_URL\})"\
+  def details = """<p>STARTED: Job '$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]':</p>\
+    <p>Check console output at &QUOT;<a href='$\{env.BUILD_URL\}'>$\{env.JOB_NAME\} [$\{env.BUILD_NUMBER\}]</a>&QUOT;</p>"""\
+\
+  // Override default values based on build status\
+  if (buildStatus == 'STARTED') \{\
+    color = 'YELLOW'\
+    colorCode = '#FFFF00'\
+  \} else if (buildStatus == 'SUCCESSFUL') \{\
+    color = 'GREEN'\
+    colorCode = '#00FF00'\
+  \} else \{\
+    color = 'RED'\
+    colorCode = '#FF0000'\
+  \}\
+\
+  // Send notifications\
+  slackSend (color: colorCode, message: summary)\
+\
+ \
+\}\
+\'97\'97\'97\'97\'97\'97\'97\'97\
+node \{\
+ 	// Clean workspace before doing anything\
+    deleteDir()\
+\
+    try \{\
+        stage ('Build') \{\
+        	sh "echo 'shell scripts to build project...'"\
+        \}\
+        stage ('Tests') \{\
+	        parallel 'static': \{\
+	            sh "echo 'shell scripts to run static tests...'"\
+	        \},\
+	        'unit': \{\
+	            sh "echo 'shell scripts to run unit tests...'"\
+	        \},\
+	        'integration': \{\
+	            sh "echo 'shell scripts to run integration tests...'"\
+	        \}\
+        \}\
+      	stage ('Deploy') \{\
+            sh "echo 'shell scripts to deploy to server...'"\
+      	\}\
+    \} catch (err) \{\
+        currentBuild.result = 'FAILED'\
+        throw err\
+    \}\
+\}\
+\
+\'97\'97\'97\'97\'97\'97\'97\'97}
