@@ -1,3 +1,10 @@
+https://stackoverflow.com/questions/7668740/tfs-2008-2010-vs-jenkins-for-continuous-integration
+https://www.g2crowd.com/compare/jenkins-vs-microsoft-team-foundation-server
+--------------------------------------------
+
+
+
+
 pipeline {
 	agent any
 	
